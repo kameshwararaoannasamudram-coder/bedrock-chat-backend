@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Matrix Login</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<body class="login-page"></body>
+<!-- Matrix Background -->
+<canvas id="matrix"></canvas>
+
+<!-- Centered Login -->
+<div class="login-container">
+  <div class="login-box">
+    <input id="email" placeholder="User ID / Email" />
+
+    <div class="password-wrapper">
+      <input id="password" type="password" placeholder="Password" />
+      <span class="toggle" onclick="togglePassword()">Show</span>
+    </div>
+
+    <button onclick="login()">Login</button>
+    <button class="reset" onclick="resetPassword()">Reset Password</button>
+  </div>
+</div>
+
+<script src="matrix.js"></script>
+<script src="auth.js"></script>
+</body>
+</html>

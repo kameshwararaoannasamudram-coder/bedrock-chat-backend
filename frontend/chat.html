@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Matrix Chat</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body class="chat-page">
+
+<canvas id="matrix"></canvas>
+
+<div class="chatgpt-app">
+
+  <!-- Sidebar -->
+  <aside class="chatgpt-sidebar">
+    <button class="new-chat" onclick="newSession()">+ New chat</button>
+    <div class="chat-history"></div>
+    <button class="logout" onclick="logout()">Logout</button>
+  </aside>
+
+  <!-- Main Chat -->
+  <main class="chatgpt-main">
+    <div id="messages" class="chatgpt-messages"></div>
+
+    <div class="chatgpt-input">
+      <input
+        id="prompt"
+        placeholder="Send a message"
+        onkeydown="if(event.key==='Enter') sendMessage()"
+      />
+      <button onclick="sendMessage()">➤</button>
+    </div>
+  </main>
+
+</div>
+
+<script src="matrix.js"></script>
+<script src="chat.js"></script>
+</body>
+</html>
