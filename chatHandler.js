@@ -1,70 +1,110 @@
-import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
-import jwt from "jsonwebtoken";
+import {
+  BedrockRuntimeClient,
+  InvokeModelCommand
+} from "@aws-sdk/client-bedrock-runtime";
 
+import {
+  BedrockAgentRuntimeClient,
+  RetrieveCommand
+} from "@aws-sdk/client-bedrock-agent-runtime";
+
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import {
+  DynamoDBDocumentClient,
+  PutCommand
+} from "@aws-sdk/lib-dynamodb";
 
 const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION });
+const agent = new BedrockAgentRuntimeClient({ region: process.env.AWS_REGION });
+
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
-
 export const handler = async (event) => {
-try {
-const token = event.headers.Authorization.replace("Bearer ", "");
-const decoded = jwt.decode(token);
-const userId = decoded.sub;
+  try {
+    // 1️⃣ Authenticated user (from API Gateway JWT authorizer)
+    const claims = event.requestContext.authorizer.jwt.claims;
+    const userId = claims.sub;
 
+    const body = JSON.parse(event.body);
+    const { message, sessionId } = body;
 
-const body = JSON.parse(event.body);
-const { message, sessionId } = body;
+    // 2️⃣ Retrieve context from Knowledge Base
+    const kbResponse = await agent.send(new RetrieveCommand({
+      knowledgeBaseId: process.env.KB_ID,
+      retrievalQuery: { text: message },
+      retrievalConfiguration: {
+        vectorSearchConfiguration: { numberOfResults: 5 }
+      }
+    }));
 
+    const context = kbResponse.retrievalResults
+      .map(r => r.content.text)
+      .join("\n\n");
 
-await ddb.send(new PutCommand({
-TableName: "ChatMessages",
-Item: {
-sessionId,
-timestamp: new Date().toISOString(),
-role: "user",
-message
-}
-}));
+    // 3️⃣ Construct prompt
+    const prompt = `
+You are an assistant answering based ONLY on the following knowledge base.
 
+Knowledge Base Context:
+${context}
 
-const command = new InvokeModelCommand({
-modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
-contentType: "application/json",
-accept: "application/json",
-body: JSON.stringify({
-messages: [{ role: "user", content: message }],
-max_tokens: 500
-})
-});
+User Question:
+${message}
+`;
 
+    // 4️⃣ Invoke Bedrock model
+    const modelResponse = await bedrock.send(new InvokeModelCommand({
+      modelId: process.env.MODEL_ID,
+      contentType: "application/json",
+      accept: "application/json",
+      body: JSON.stringify({
+        anthropic_version: "bedrock-2023-05-31",
+        max_tokens: 500,
+        messages: [
+          { role: "user", content: [{ type: "text", text: prompt }] }
+        ]
+      })
+    }));
 
-const response = await bedrock.send(command);
-const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-const aiMessage = responseBody.content[0].text;
+    const responseBody = JSON.parse(
+      Buffer.from(modelResponse.body).toString("utf-8")
+    );
 
+    const reply = responseBody.content[0].text;
 
-await ddb.send(new PutCommand({
-TableName: "ChatMessages",
-Item: {
-sessionId,
-timestamp: new Date().toISOString(),
-role: "assistant",
-message: aiMessage
-}
-}));
+    // 5️⃣ Store messages in DynamoDB
+    const timestamp = new Date().toISOString();
 
+    await ddb.send(new PutCommand({
+      TableName: process.env.MESSAGES_TABLE,
+      Item: {
+        sessionId,
+        timestamp: timestamp + "-user",
+        role: "user",
+        message
+      }
+    }));
 
-return {
-statusCode: 200,
-body: JSON.stringify({ reply: aiMessage })
-};
+    await ddb.send(new PutCommand({
+      TableName: process.env.MESSAGES_TABLE,
+      Item: {
+        sessionId,
+        timestamp: timestamp + "-assistant",
+        role: "assistant",
+        message: reply
+      }
+    }));
 
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ reply })
+    };
 
-} catch (err) {
-console.error(err);
-return { statusCode: 500, body: "Error processing chat" };
-}
+  } catch (err) {
+    console.error("ERROR:", err);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "Bedrock chat failed" })
+    };
+  }
 };

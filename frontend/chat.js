@@ -1,4 +1,4 @@
-const API = 'https://YOUR_API_ID.execute-api.REGION.amazonaws.com/prod';
+const API = 'https://d60d2iioma.execute-api.us-east-1.amazonaws.com/$default';
 let sessionId = crypto.randomUUID();
 
 function addMessage(role, text) {
@@ -16,7 +16,7 @@ async function sendMessage() {
 
   input.value = '';
   addMessage('user', message);
-
+  try {
   const response = await fetch(`${API}/chat`, {
     method: 'POST',
     headers: {
@@ -28,7 +28,11 @@ async function sendMessage() {
 
   const data = await response.json();
   addMessage('assistant', data.reply);
-}
+  } catch (err) {
+    console.error(err);
+    addMessage("assistant",  "⚠️ Error talking to Bedrock - "+err);
+   }
+ }
 
 function newSession() {
   sessionId = crypto.randomUUID();
@@ -71,4 +75,20 @@ async function loadMessages(sessionId) {
   const messages = await res.json();
   messages.forEach(m => addMessage(m.role, m.message));
 }
-window.onload = loadSessions;
+window.onload = () => {
+  newSession()
+  alert("token"+ sessionStorage.getItem("token"));
+  const token = sessionStorage.getItem("token");
+  // if (!token) {
+  //   window.location.href = "/";
+  // }
+  // loadSessions();
+};
+
+const ONE_HOUR = 3600000;
+const loginTime = sessionStorage.getItem("loginTime");
+
+if (Date.now() - loginTime > ONE_HOUR) {
+  sessionStorage.clear();
+  window.location.href = "/";
+}
