@@ -15,13 +15,14 @@
     <input id="email" placeholder="User ID / Email" />
 
     <div class="password-wrapper">
-      <input id="password" type="password" placeholder="Password" />
+      <input id="passwordInput" type="password" placeholder="Password" />
       <span class="toggle" onclick="togglePassword()">Show</span>
     </div>
 
-    <button onclick="login()">Login</button>
-    <button class="reset" onclick="resetPassword()">Reset Password</button>
+    <button id="loginBtn" onclick="login()">Login</button>
+    <button class="reset" onclick="resetPassword()">Forgot Password</button>
   </div>
+  <p id="error" style="color:red;"></p>
 </div>
 
 <script src="matrix.js"></script>
