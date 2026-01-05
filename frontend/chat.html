@@ -17,10 +17,16 @@
     <button class="new-chat" onclick="newSession()">+ New chat</button>
     <div class="chat-history"></div>
     <button class="logout" onclick="logout()">Logout</button>
+    <h4>Chats</h4>
+  <ul id="sessions" style="list-style:none;padding:0"></ul>
   </aside>
 
   <!-- Main Chat -->
   <main class="chatgpt-main">
+     <!-- Top Header -->
+  <div class="chat-header">
+    <span id="welcomeUser"></span>
+  </div>
     <div id="messages" class="chatgpt-messages"></div>
 
     <div class="chatgpt-input">

@@ -1,6 +1,18 @@
-const API = 'https://d60d2iioma.execute-api.us-east-1.amazonaws.com';
-let sessionId = crypto.randomUUID();
+/* ================= CONFIG ================= */
+const API = 'https://bitwvihdc8.execute-api.us-east-1.amazonaws.com';
+let currentSessionId = null;
+let isFirstMessage = true;
 
+/* ================= UTILS ================= */
+function uuidv4() {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    const v = c === "x" ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+/* ================= UI HELPERS ================= */
 function addMessage(role, text) {
   const div = document.createElement('div');
   div.className = `message ${role}`;
@@ -9,6 +21,7 @@ function addMessage(role, text) {
   div.scrollIntoView({ behavior: 'smooth' });
 }
 
+/* ================= CHAT ================= */
 async function sendMessage() {
   const input = document.getElementById('prompt');
   const message = input.value.trim();
@@ -16,98 +29,112 @@ async function sendMessage() {
 
   input.value = '';
   addMessage('user', message);
-  
-  try {
-  const response = await fetch(`${API}/chat`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + sessionStorage.getItem("accessToken")
-    },
-    body: JSON.stringify({ input: message })//, sessionId
-  });
- // Check HTTP status first
-    if (!response.ok) {
-      // Try to parse JSON body for error details
-      let errorDetails = '';
-      try {
-        const errorData = await response.json();
-        errorDetails = JSON.stringify(errorData);
-      } catch (_) {
-        // If response is not JSON, just read text
-        errorDetails = await response.text();
-      }
-      throw new Error(`HTTP ${response.status} - ${response.statusText}: ${errorDetails}`);
-    }
-  const data = await response.json();
-  addMessage('assistant', data.response);
-  } catch (err) {
-    // Detailed error logging
-    if (err instanceof TypeError) {
-      // Usually network error or CORS
-      addMessage("Network / CORS error:", err.message);
-    } else {
-      addMessage("API error:", err.message);
-    }
-    addMessage("assistant",  "⚠️ Error talking to Bedrock - "+err);
-   }
- }
 
+  // Create session ONLY on first message
+  if (!currentSessionId) {
+    currentSessionId = uuidv4();
+    isFirstMessage = true;
+  }
+
+  try {
+    const res = await fetch(`${API}/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': sessionStorage.getItem('idToken')
+      },
+      body: JSON.stringify({
+        prompt: message,
+        sessionId: currentSessionId,
+        isFirstMessage: isFirstMessage   // backend uses this to set title
+      })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(errText);
+    }
+
+    const data = await res.json();
+    addMessage('assistant', data.response);
+
+    isFirstMessage = false;
+    loadSessions(); // refresh sidebar title after first message
+
+  } catch (err) {
+    addMessage('assistant', '⚠️ Error talking to Bedrock');
+    console.error(err);
+  }
+}
+
+/* ================= NEW CHAT ================= */
 function newSession() {
-  sessionId = crypto.randomUUID();
+  currentSessionId = null;
+  isFirstMessage = true;
   document.getElementById('messages').innerHTML = '';
 }
 
+/* ================= LOGOUT ================= */
 function logout() {
   sessionStorage.clear();
   window.location.href = 'index.html';
 }
-// async function loadSessions() {
-//   const res = await fetch(`${API}/sessions`, {
-//     headers: {
-//       Authorization: 'Bearer ' + sessionStorage.getItem('token')
-//     }
-//   });
 
-//   const sessions = await res.json();
-//   const container = document.querySelector('.chat-history');
-//   container.innerHTML = '';
+/* ================= SIDEBAR ================= */
+async function loadSessions() {
+  const res = await fetch(`${API}/sessions`, {
+    headers: {
+      Authorization: sessionStorage.getItem('idToken')
+    }
+  });
 
-//   sessions.forEach(s => {
-//     const div = document.createElement('div');
-//     div.className = 'session-item';
-//     div.innerText = s.title || 'New chat';
-//     div.onclick = () => loadMessages(s.sessionId);
-//     container.appendChild(div);
-//   });
-// }
-// async function loadMessages(sessionId) {
-//   currentSessionId = sessionId;
-//   document.getElementById('messages').innerHTML = '';
+  const sessions = await res.json();
+  const ul = document.getElementById("sessions");
+  ul.innerHTML = "";
 
-//   const res = await fetch(`${API}/messages?sessionId=${sessionId}`, {
-//     headers: {
-//       Authorization: 'Bearer ' + sessionStorage.getItem('token')
-//     }
-//   });
+  sessions.forEach(s => {
+    const li = document.createElement("li");
+    li.textContent = s.title || "New chat";
+    li.style.cursor = "pointer";
+    li.onclick = () => loadMessages(s.sessionId);
+    ul.appendChild(li);
+  });
+}
 
-//   const messages = await res.json();
-//   messages.forEach(m => addMessage(m.role, m.message));
-// }
+/* ================= LOAD CHAT ================= */
+async function loadMessages(sessionId) {
+  currentSessionId = sessionId;
+  
+  isFirstMessage = false;
+  document.getElementById('messages').innerHTML = '';
+try {
+  const res = await fetch(`${API}/messages?sessionId=${sessionId}`, {
+    headers: {
+      Authorization: sessionStorage.getItem('idToken')
+    }
+  });
+  if (!res.ok) {
+      throw new Error("Failed to load messages");
+    }
+    alert(res)
+  const messages = await res.json();
+  messages.forEach(m => addMessage(m.role, m.message));
+} catch (err) {
+    addMessage("assistant", "⚠️ Failed to load session history");
+    console.error(err);
+  }
+}
+
+/* ================= INIT ================= */
 window.onload = () => {
-  newSession()
-  // alert("token"+ sessionStorage.getItem("accessToken"));
   const token = sessionStorage.getItem("accessToken");
-    if (!token) {
-      alert("Please login first");
-      window.location.href = "index.html";
-}};
+  const username = sessionStorage.getItem("username");
 
-// const ONE_HOUR = 3600000;
-// const loginTime = sessionStorage.getItem("loginTime");
+  if (!token) {
+    window.location.href = "index.html";
+    return;
+  }
 
-// if (Date.now() - loginTime > ONE_HOUR) {
-//   sessionStorage.clear();
-//   window.location.href = "/";
-// }
-
+  document.getElementById("welcomeUser").innerText = `👤 ${username}`;
+  loadSessions();
+};

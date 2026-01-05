@@ -16,8 +16,9 @@ async function login() {
   }
 
   try {
-    
- const response = await fetch("https://76d6d8gk3c.execute-api.us-east-1.amazonaws.com/login", {
+    // https://bitwvihdc8.execute-api.us-east-1.amazonaws.com
+    // https://76d6d8gk3c.execute-api.us-east-1.amazonaws.com
+ const response = await fetch("https://bitwvihdc8.execute-api.us-east-1.amazonaws.com/login", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -37,12 +38,14 @@ async function login() {
 
     // ✅ Store token securely for session
     sessionStorage.setItem("accessToken", data.accessToken);
-alert(data.accessToken)
+    sessionStorage.setItem("username", username); 
+    sessionStorage.setItem("idToken", data.idToken); 
+// alert(data.accessToken)
     // ✅ Redirect to chat
     window.location.href = 'chat.html';
 
   } catch (err) {
-    alert(err.message);
+    alert(err);
   }
 }
 
